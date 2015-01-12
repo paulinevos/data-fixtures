@@ -17,6 +17,9 @@ use Doctrine\Tests\Common\DataFixtures\TestEntity\Role;
 class ProxyReferenceRepositoryTest extends BaseTest
 {
     const TEST_ENTITY_ROLE = Role::class;
+    const TEST_ENTITY_ROLE = 'Doctrine\Tests\Common\DataFixtures\TestEntity\Role';
+    const TEST_ENTITY_USER = 'Doctrine\Tests\Common\DataFixtures\TestEntity\User';
+    const TEST_ENTITY_USER_ROLE = 'Doctrine\Tests\Common\DataFixtures\TestEntity\UserRole';
 
     public function testReferenceEntry()
     {
@@ -137,5 +140,42 @@ class ProxyReferenceRepositoryTest extends BaseTest
 
         $this->assertInstanceOf(Proxy::class, $referenceRepository->getReference('admin'));
         $this->assertInstanceOf(Proxy::class, $referenceRepository->getReference('duplicate'));
+    }
+    
+    public function testCompositeForeignKeysReconstruction()
+    {
+        $em = $this->getMockSqliteEntityManager();
+        $this->prepareSchema(
+            $em,
+            array(
+                self::TEST_ENTITY_ROLE,
+                self::TEST_ENTITY_USER,
+                self::TEST_ENTITY_USER_ROLE
+            )
+        );
+        
+        $referenceRepository = new ProxyReferenceRepository($em);
+        
+        $roleFixture = new TestFixtures\RoleFixture;
+        $roleFixture->setReferenceRepository($referenceRepository);
+        $roleFixture->load($em);
+
+        $userFixture = new TestFixtures\UserFixture;
+        $userFixture->setReferenceRepository($referenceRepository);
+        $userFixture->load($em);
+        
+        $userFixture = new TestFixtures\UserRoleFixture;
+        $userFixture->setReferenceRepository($referenceRepository);
+        $userFixture->load($em);
+        
+        $em->clear();
+        
+        $data = $referenceRepository->serialize();
+        
+        $referenceRepository = new ProxyReferenceRepository($em);
+        $referenceRepository->unserialize($data);
+        
+        $compositeKey = $referenceRepository->getReference('composite-key');
+        $this->assertInstanceOf('Doctrine\ORM\Proxy\Proxy', $compositeKey);
     }
 }
